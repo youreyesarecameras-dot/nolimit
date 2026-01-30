@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>No Limit Wordle</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #121213;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+
+  .game {
+    text-align: center;
+  }
+
+  .row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+
+  .tile {
+    width: 48px;
+    height: 48px;
+    border: 2px solid #3a3a3c;
+    margin: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .correct { background: #538d4e; border-color: #538d4e; }
+  .present { background: #b59f3b; border-color: #b59f3b; }
+  .absent  { background: #3a3a3c; border-color: #3a3a3c; }
+
+  input, button, select {
+    padding: 8px;
+    font-size: 16px;
+    margin: 6px;
+  }
+
+  #restart {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="game">
+  <h1>No Limit Wordle</h1>
+
+  <label>
+    Word Length:
+    <select id="lengthSelect">
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5" selected>5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+    </select>
+  </label>
+
+  <br>
+  <button onclick="startGame()">Start Game</button>
+
+  <div id="board"></div>
+
+  <input id="guessInput" disabled>
+  <br>
+  <button id="restart" onclick="startGame()">Next Round</button>
+
+  <p id="message"></p>
+</div>
+
+<script>
+let WORD_LENGTH = 5;
+const MAX_GUESSES = 6;
+
+let target = "";
+let currentGuess = 0;
+let gameOver = false;
+
+const board = document.getElementById("board");
+const input = document.getElementById("guessInput");
+const message = document.getElementById("message");
+const restartBtn = document.getElementById("restart");
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter") submitGuess();
+});
+
+function randomWord(len) {
+  return Array.from({length: len}, () =>
+    String.fromCharCode(65 + Math.floor(Math.random() * 26))
+  ).join("");
+}
+
+function startGame() {
+  WORD_LENGTH = parseInt(document.getElementById("lengthSelect").value);
+  target = randomWord(WORD_LENGTH);
+
+  board.innerHTML = "";
+  message.textContent = "";
+  restartBtn.style.display = "none";
+
+  input.value = "";
+  input.maxLength = WORD_LENGTH;
+  input.disabled = false;
+  input.focus();
+
+  currentGuess = 0;
+  gameOver = false;
+
+  for (let i = 0; i < MAX_GUESSES; i++) {
+    const row = document.createElement("div");
+    row.className = "row";
+    for (let j = 0; j < WORD_LENGTH; j++) {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      row.appendChild(tile);
+    }
+    board.appendChild(row);
+  }
+}
+
+function submitGuess() {
+  if (gameOver) return;
+
+  let guess = input.value.toUpperCase();
+  if (guess.length !== WORD_LENGTH) return;
+
+  const row = board.children[currentGuess].children;
+  const targetArr = target.split("");
+
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    row[i].textContent = guess[i];
+    if (guess[i] === target[i]) {
+      row[i].classList.add("correct");
+      targetArr[i] = null;
+    }
+  }
+
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (row[i].classList.contains("correct")) continue;
+
+    if (targetArr.includes(guess[i])) {
+      row[i].classList.add("present");
+      targetArr[targetArr.indexOf(guess[i])] = null;
+    } else {
+      row[i].classList.add("absent");
+    }
+  }
+
+  if (guess === target) {
+    message.textContent = "You win";
+    endGame();
+    return;
+  }
+
+  currentGuess++;
+  input.value = "";
+
+  if (currentGuess === MAX_GUESSES) {
+    message.textContent = "The word was: " + target;
+    endGame();
+  }
+}
+
+function endGame() {
+  gameOver = true;
+  input.disabled = true;
+  restartBtn.style.display = "inline-block";
+}
+</script>
+
+</body>
+</html>
