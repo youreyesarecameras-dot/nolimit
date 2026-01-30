@@ -103,7 +103,7 @@
     <input type="checkbox" id="hardMode"> Hard Mode
   </label>
 
-  <button onclick="toggleTheme()">🌗</button>
+  <button onclick="toggleTheme()">Light/Dark Mode Toggle</button>
   <br>
   <button onclick="startGame()">Start</button>
 
@@ -115,7 +115,7 @@
 </div>
 
 <script>
-const MAX_GUESSES = 6;
+const MAX_GUESSES = 7;
 let WORD_LENGTH = 5;
 let target = "";
 let guess = "";
@@ -268,7 +268,7 @@ function submitGuess() {
   guess = "";
 
   if (rowIndex === MAX_GUESSES) {
-    message.textContent = "The ord was: " + target;
+    message.textContent = "The word was: " + target;
     endGame();
   }
 }
