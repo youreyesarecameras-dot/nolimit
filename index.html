@@ -2,12 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>No Limit Wordle</title>
+<title>Any-Letter Wordle++</title>
 <style>
+  :root {
+    --bg: #121213;
+    --text: #ffffff;
+    --tile-border: #3a3a3c;
+    --absent: #3a3a3c;
+    --present: #b59f3b;
+    --correct: #538d4e;
+    --key-bg: #818384;
+  }
+
+  body.light {
+    --bg: #ffffff;
+    --text: #000000;
+    --tile-border: #d3d6da;
+    --absent: #d3d6da;
+    --key-bg: #d3d6da;
+  }
+
   body {
+    background: var(--bg);
+    color: var(--text);
     font-family: Arial, sans-serif;
-    background: #121213;
-    color: white;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -21,83 +39,100 @@
   .row {
     display: flex;
     justify-content: center;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
 
   .tile {
-    width: 48px;
-    height: 48px;
-    border: 2px solid #3a3a3c;
+    width: 45px;
+    height: 45px;
+    border: 2px solid var(--tile-border);
     margin: 3px;
+    font-size: 22px;
+    font-weight: bold;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+  }
+
+  .correct { background: var(--correct); border-color: var(--correct); }
+  .present { background: var(--present); border-color: var(--present); }
+  .absent  { background: var(--absent); border-color: var(--absent); }
+
+  .keyboard {
+    margin-top: 10px;
+  }
+
+  .key {
+    padding: 10px;
+    margin: 3px;
+    min-width: 30px;
     font-weight: bold;
-    text-transform: uppercase;
+    cursor: pointer;
+    background: var(--key-bg);
+    border: none;
   }
 
-  .correct { background: #538d4e; border-color: #538d4e; }
-  .present { background: #b59f3b; border-color: #b59f3b; }
-  .absent  { background: #3a3a3c; border-color: #3a3a3c; }
-
-  input, button, select {
-    padding: 8px;
-    font-size: 16px;
-    margin: 6px;
+  button, select, label {
+    margin: 5px;
+    padding: 6px;
   }
 
-  #restart {
-    display: none;
-  }
+  #restart { display: none; }
 </style>
 </head>
 <body>
 
 <div class="game">
-  <h1>No Limit Wordle</h1>
+  <h2>Any-Letter Wordle++</h2>
 
   <label>
     Word Length:
     <select id="lengthSelect">
-      <option value="3">3</option>
-      <option value="4">4</option>
-      <option value="5" selected>5</option>
-      <option value="6">6</option>
-      <option value="7">7</option>
-      <option value="8">8</option>
-      <option value="9">9</option>
+      <option>4</option>
+      <option selected>5</option>
+      <option>6</option>
     </select>
   </label>
 
+  <label>
+    <input type="checkbox" id="hardMode"> Hard Mode
+  </label>
+
+  <button onclick="toggleTheme()">🌗</button>
   <br>
-  <button onclick="startGame()">Start Game</button>
+  <button onclick="startGame()">Start</button>
 
   <div id="board"></div>
-
-  <input id="guessInput" disabled>
-  <br>
-  <button id="restart" onclick="startGame()">Next Round</button>
+  <div class="keyboard" id="keyboard"></div>
 
   <p id="message"></p>
+  <button id="restart" onclick="startGame()">Next Round</button>
 </div>
 
 <script>
-let WORD_LENGTH = 5;
 const MAX_GUESSES = 6;
-
+let WORD_LENGTH = 5;
 let target = "";
-let currentGuess = 0;
+let guess = "";
+let rowIndex = 0;
 let gameOver = false;
+let knownGreens = [];
+let knownYellows = new Set();
 
 const board = document.getElementById("board");
-const input = document.getElementById("guessInput");
+const keyboardDiv = document.getElementById("keyboard");
 const message = document.getElementById("message");
-const restartBtn = document.getElementById("restart");
 
-input.addEventListener("keydown", e => {
+document.addEventListener("keydown", e => {
+  if (gameOver) return;
   if (e.key === "Enter") submitGuess();
+  else if (e.key === "Backspace") removeLetter();
+  else if (/^[a-zA-Z]$/.test(e.key)) addLetter(e.key.toUpperCase());
 });
+
+function toggleTheme() {
+  document.body.classList.toggle("light");
+}
 
 function randomWord(len) {
   return Array.from({length: len}, () =>
@@ -108,18 +143,16 @@ function randomWord(len) {
 function startGame() {
   WORD_LENGTH = parseInt(document.getElementById("lengthSelect").value);
   target = randomWord(WORD_LENGTH);
+  guess = "";
+  rowIndex = 0;
+  gameOver = false;
+  knownGreens = Array(WORD_LENGTH).fill(null);
+  knownYellows.clear();
 
   board.innerHTML = "";
+  keyboardDiv.innerHTML = "";
   message.textContent = "";
-  restartBtn.style.display = "none";
-
-  input.value = "";
-  input.maxLength = WORD_LENGTH;
-  input.disabled = false;
-  input.focus();
-
-  currentGuess = 0;
-  gameOver = false;
+  document.getElementById("restart").style.display = "none";
 
   for (let i = 0; i < MAX_GUESSES; i++) {
     const row = document.createElement("div");
@@ -131,55 +164,113 @@ function startGame() {
     }
     board.appendChild(row);
   }
+
+  createKeyboard();
+}
+
+function createKeyboard() {
+  const rows = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+  rows.forEach(r => {
+    const row = document.createElement("div");
+    [...r].forEach(l => {
+      const btn = document.createElement("button");
+      btn.className = "key";
+      btn.textContent = l;
+      btn.onclick = () => addLetter(l);
+      row.appendChild(btn);
+    });
+    keyboardDiv.appendChild(row);
+  });
+
+  const enter = document.createElement("button");
+  enter.textContent = "ENTER";
+  enter.className = "key";
+  enter.onclick = submitGuess;
+
+  const back = document.createElement("button");
+  back.textContent = "⌫";
+  back.className = "key";
+  back.onclick = removeLetter;
+
+  keyboardDiv.appendChild(enter);
+  keyboardDiv.appendChild(back);
+}
+
+function addLetter(letter) {
+  if (guess.length < WORD_LENGTH) {
+    const tile = board.children[rowIndex].children[guess.length];
+    tile.textContent = letter;
+    guess += letter;
+  }
+}
+
+function removeLetter() {
+  if (guess.length > 0) {
+    guess = guess.slice(0, -1);
+    board.children[rowIndex].children[guess.length].textContent = "";
+  }
 }
 
 function submitGuess() {
-  if (gameOver) return;
-
-  let guess = input.value.toUpperCase();
   if (guess.length !== WORD_LENGTH) return;
 
-  const row = board.children[currentGuess].children;
-  const targetArr = target.split("");
+  // Hard mode checks
+  if (document.getElementById("hardMode").checked) {
+    for (let i = 0; i < WORD_LENGTH; i++) {
+      if (knownGreens[i] && guess[i] !== knownGreens[i]) {
+        message.textContent = "Hard mode: keep green letters!";
+        return;
+      }
+    }
+    for (let y of knownYellows) {
+      if (!guess.includes(y)) {
+        message.textContent = "Hard mode: reuse yellow letters!";
+        return;
+      }
+    }
+  }
+
+  const row = board.children[rowIndex].children;
+  const temp = target.split("");
 
   for (let i = 0; i < WORD_LENGTH; i++) {
-    row[i].textContent = guess[i];
+    row[i].className = "tile";
     if (guess[i] === target[i]) {
       row[i].classList.add("correct");
-      targetArr[i] = null;
+      knownGreens[i] = guess[i];
+      temp[i] = null;
     }
   }
 
   for (let i = 0; i < WORD_LENGTH; i++) {
     if (row[i].classList.contains("correct")) continue;
-
-    if (targetArr.includes(guess[i])) {
+    if (temp.includes(guess[i])) {
       row[i].classList.add("present");
-      targetArr[targetArr.indexOf(guess[i])] = null;
+      knownYellows.add(guess[i]);
+      temp[temp.indexOf(guess[i])] = null;
     } else {
       row[i].classList.add("absent");
     }
   }
 
   if (guess === target) {
-    message.textContent = "You win";
+    message.textContent = "You win!";
     endGame();
     return;
   }
 
-  currentGuess++;
-  input.value = "";
+  rowIndex++;
+  guess = "";
 
-  if (currentGuess === MAX_GUESSES) {
-    message.textContent = "The word was: " + target;
+  if (rowIndex === MAX_GUESSES) {
+    message.textContent = "The ord was: " + target;
     endGame();
   }
 }
 
 function endGame() {
   gameOver = true;
-  input.disabled = true;
-  restartBtn.style.display = "inline-block";
+  document.getElementById("restart").style.display = "inline-block";
 }
 </script>
 
